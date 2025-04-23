@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+  chat-api:
+    build: .
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - MONGODB_URI=mongodb://192.168.1.181:27019/chat_service
+      - JWT_SECRET=tu_secreto_super_seguro
+      - API_AUTH_URL=http://192.168.1.181:3001
+      - API_ROOMS_URL=http://192.168.1.181:3002
+      - SERVICE_TOKEN=token_servicio_para_comunicacion_interna
+    depends_on:
+      - mongo
+    networks:
+      - chat-network
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27019:27017" # Mongo expuesto en el puerto 27019
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  mongo-data:

@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  auth-api:
+    build: .
+    ports:
+      - "3001:3001" # Exponemos el puerto 3001 para acceso externo
+    environment:
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/auth_service # Conexión a Mongo usando el nombre del servicio
+      - JWT_SECRET=tu_secreto_super_seguro
+      - JWT_EXPIRE=24h
+      - API_ROOMS_URL=http://192.168.1.181:3002 # IP del host para servicios externos
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017" # Exponemos el puerto de Mongo
+    volumes:
+      - mongo-data:/data/db
+ 
+volumes:
+  mongo-data:

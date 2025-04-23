@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  api-gateway:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_API_URL=http://192.168.1.181:3001
+      - ROOMS_API_URL=http://192.168.1.181:3002
+      - CHAT_API_URL=http://192.168.1.181:3003
+      - JWT_SECRET=tu_secreto_super_seguro
