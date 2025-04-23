@@ -1,25 +1,45 @@
 version: '3'
-
 services:
   auth-api:
     build: .
     ports:
-      - "3001:3001" # Exponemos el puerto 3001 para acceso externo
+      - "3001:3001"
     environment:
       - PORT=3001
-      - MONGODB_URI=mongodb://mongo:27017/auth_service # Conexión a Mongo usando el nombre del servicio
+      - MONGODB_URI=mongodb://192.168.1.181:27017,192.168.1.181:27027,192.168.1.181:27037/auth_service?replicaSet=rs_auth
       - JWT_SECRET=tu_secreto_super_seguro
       - JWT_EXPIRE=24h
-      - API_ROOMS_URL=http://192.168.1.181:3002 # IP del host para servicios externos
+      - API_ROOMS_URL=http://192.168.1.181:8002
     depends_on:
-      - mongo
+      - mongo1
+      - mongo2
+      - mongo3
 
-  mongo:
+  mongo1:
     image: mongo:latest
     ports:
-      - "27017:27017" # Exponemos el puerto de Mongo
+      - "27017:27017"
     volumes:
-      - mongo-data:/data/db
- 
+      - mongo-data1:/data/db
+    command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+
+  mongo2:
+    image: mongo:latest
+    ports:
+      - "27027:27017"
+    volumes:
+      - mongo-data2:/data/db
+    command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+
+  mongo3:
+    image: mongo:latest
+    ports:
+      - "27037:27017"
+    volumes:
+      - mongo-data3:/data/db
+    command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+
 volumes:
-  mongo-data:
+  mongo-data1:
+  mongo-data2:
+  mongo-data3:

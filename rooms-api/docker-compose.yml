@@ -1,5 +1,4 @@
 version: '3'
-
 services:
   rooms-api:
     build: .
@@ -7,19 +6,40 @@ services:
       - "3002:3002"
     environment:
       - PORT=3002
-      - MONGODB_URI=mongodb://192.168.1.181:27018/rooms_service
+      - MONGODB_URI=mongodb://192.168.1.181:27018,192.168.1.181:27028,192.168.1.181:27038/rooms_service?replicaSet=rs_rooms
       - JWT_SECRET=tu_secreto_super_seguro
-      - API_AUTH_URL=http://192.168.1.181:3001
-      - API_CHAT_URL=http://192.168.1.181:3003
+      - API_AUTH_URL=http://192.168.1.181:8001
+      - API_CHAT_URL=http://192.168.1.181:8003
     depends_on:
-      - mongo
+      - mongo1
+      - mongo2
+      - mongo3
 
-  mongo:
+  mongo1:
     image: mongo:latest
     ports:
-      - "27018:27017" # Mongo expuesto en el puerto 27018
+      - "27018:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo-data1:/data/db
+    command: mongod --replSet rs_rooms --port 27017 --bind_ip 0.0.0.0
+
+  mongo2:
+    image: mongo:latest
+    ports:
+      - "27028:27017"
+    volumes:
+      - mongo-data2:/data/db
+    command: mongod --replSet rs_rooms --port 27017 --bind_ip 0.0.0.0
+
+  mongo3:
+    image: mongo:latest
+    ports:
+      - "27038:27017"
+    volumes:
+      - mongo-data3:/data/db
+    command: mongod --replSet rs_rooms --port 27017 --bind_ip 0.0.0.0
 
 volumes:
-  mongo-data:
+  mongo-data1:
+  mongo-data2:
+  mongo-data3:
