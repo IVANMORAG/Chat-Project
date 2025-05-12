@@ -3,6 +3,9 @@
 Bienvenido a ChatApp, una aplicación distribuida basada en microservicios para autenticación de usuarios, gestión de salas y chat en tiempo real. Utiliza Node.js para los servicios backend, MongoDB para la persistencia, Nginx como balanceador de carga, y un frontend para la interfaz de usuario. Todo está orquestado con Docker Compose.
 Tabla de Contenidos
 
+<a target="_blank" align="center">
+  <img align="center" height="400" width="1000" alt="GIF" src="https://i.gifer.com/33HI.gif">
+</a>
 
 
 ##  Arquitectura
