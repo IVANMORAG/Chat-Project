@@ -1,6 +1,6 @@
 version: '3'
 services:
-  api-gateway:
+  api-gateway-1:
     build: .
     ports:
       - "3000:3000"
@@ -10,3 +10,72 @@ services:
       - ROOMS_API_URL=http://192.168.1.181:8002
       - CHAT_API_URL=http://192.168.1.181:8003
       - JWT_SECRET=tu_secreto_super_seguro
+      - RATE_LIMIT_WINDOW_MS=60000 # 1 minuto
+      - RATE_LIMIT_MAX=100 # 100 peticiones por minuto
+      - RATE_LIMIT_MESSAGE=Demasiadas peticiones, inténtalo más tarde
+    restart: always
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  api-gateway-2:
+    build: .
+    ports:
+      - "3010:3000"  # Mapea el puerto 3010 del host al 3000 del contenedor
+    environment:
+      - PORT=3000
+      - AUTH_API_URL=http://192.168.1.181:8001
+      - ROOMS_API_URL=http://192.168.1.181:8002
+      - CHAT_API_URL=http://192.168.1.181:8003
+      - JWT_SECRET=tu_secreto_super_seguro
+      - RATE_LIMIT_WINDOW_MS=60000 # 1 minuto
+      - RATE_LIMIT_MAX=100 # 100 peticiones por minuto
+      - RATE_LIMIT_MESSAGE=Demasiadas peticiones, inténtalo más tarde
+    restart: always
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+  # Redis para almacenar sesiones y ayudar con rate limiting
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  redis-data:

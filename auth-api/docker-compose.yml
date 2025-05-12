@@ -1,19 +1,64 @@
 version: '3'
 services:
-  auth-api:
+  auth-api-1:
     build: .
     ports:
       - "3001:3001"
     environment:
       - PORT=3001
-      - MONGODB_URI=mongodb://192.168.1.181:27017,192.168.1.181:27027,192.168.1.181:27037/auth_service?replicaSet=rs_auth
+      - MONGODB_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/auth_service?replicaSet=rs_auth
       - JWT_SECRET=tu_secreto_super_seguro
       - JWT_EXPIRE=24h
       - API_ROOMS_URL=http://192.168.1.181:8002
+    restart: always
     depends_on:
       - mongo1
       - mongo2
       - mongo3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  auth-api-2:
+    build: .
+    ports:
+      - "3011:3001"  # Mapea el puerto 3011 del host al 3001 del contenedor
+    environment:
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/auth_service?replicaSet=rs_auth
+      - JWT_SECRET=tu_secreto_super_seguro
+      - JWT_EXPIRE=24h
+      - API_ROOMS_URL=http://192.168.1.181:8002
+    restart: always
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mongo1:
     image: mongo:latest
@@ -22,6 +67,13 @@ services:
     volumes:
       - mongo-data1:/data/db
     command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   mongo2:
     image: mongo:latest
@@ -30,6 +82,13 @@ services:
     volumes:
       - mongo-data2:/data/db
     command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   mongo3:
     image: mongo:latest
@@ -38,6 +97,31 @@ services:
     volumes:
       - mongo-data3:/data/db
     command: mongod --replSet rs_auth --port 27017 --bind_ip 0.0.0.0
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Script para inicializar el replica set
+  mongo-init:
+    image: mongo:latest
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    restart: on-failure
+    command: >
+      bash -c "sleep 10 && mongosh --host mongo1:27017 --eval 'rs.initiate({
+        _id: \"rs_auth\",
+        members: [
+          {_id: 0, host: \"mongo1:27017\"},
+          {_id: 1, host: \"mongo2:27017\"},
+          {_id: 2, host: \"mongo3:27017\"}
+        ]
+      })'"
 
 volumes:
   mongo-data1:
