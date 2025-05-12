@@ -20,7 +20,7 @@ Microservicios:
 
 ## 🛠️ Tecnologías
 
-* **Backend:** Node.js, Express
+* **Backend:** Node.js, Express, JWT
   
 * **Base de Datos:** MongoDB con ReplicaSet
 * **Proxy/Balanceador:** Nginx
