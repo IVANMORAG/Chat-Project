@@ -1,0 +1,292 @@
+
+worker_processes auto;
+worker_rlimit_nofile 20000;
+
+events {
+    worker_connections 4096;
+    multi_accept on;
+}
+
+http {
+    include mime.types;
+    default_type application/octet-stream;
+
+    # Configuración básica para rendimiento
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # Configuración de buffer
+    client_body_buffer_size 10K;
+    client_header_buffer_size 1k;
+    client_max_body_size 8m;
+    large_client_header_buffers 2 1k;
+
+    # Configuración de timeouts
+    client_body_timeout 12;
+    client_header_timeout 12;
+    send_timeout 10;
+
+    # Configuración de caché
+    open_file_cache max=1000 inactive=20s;
+    open_file_cache_valid 30s;
+    open_file_cache_min_uses 2;
+    open_file_cache_errors on;
+
+    # Mitigación de DDoS - Limitación de tasas
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+    limit_conn_zone $binary_remote_addr zone=conn_limit:10m;
+
+    # Log personalizado para detectar ataques
+    log_format ddos '$remote_addr - $remote_user [$time_local] '
+                    '"$request" $status $body_bytes_sent '
+                    '"$http_referer" "$http_user_agent" $request_time';
+
+    # Upstream para API de Autenticación
+    upstream auth_servers {
+        server 192.168.1.181:3001;
+        server 192.168.1.181:3011;  # Puerto secundario para la segunda instancia
+        
+        least_conn;
+        keepalive 100;
+        
+        server 192.168.1.181:3001 max_fails=3 fail_timeout=30s;
+        server 192.168.1.181:3011 max_fails=3 fail_timeout=30s;
+    }
+
+    # Upstream para API de Salas
+    upstream rooms_servers {
+        server 192.168.1.181:3002;
+        server 192.168.1.181:3012;  # Puerto secundario para la segunda instancia
+        
+        least_conn;
+        keepalive 100;
+        
+        server 192.168.1.181:3002 max_fails=3 fail_timeout=30s;
+        server 192.168.1.181:3012 max_fails=3 fail_timeout=30s;
+    }
+
+    # Upstream para API de Chat
+    upstream chat_servers {
+        server 192.168.1.181:3003;
+        server 192.168.1.181:3013;  # Puerto secundario para la segunda instancia
+        
+        least_conn;
+        keepalive 100;
+        
+        server 192.168.1.181:3003 max_fails=3 fail_timeout=30s;
+        server 192.168.1.181:3013 max_fails=3 fail_timeout=30s;
+    }
+
+    # Upstream para API Gateway
+    upstream gateway_servers {
+        server 192.168.1.181:3000;
+        server 192.168.1.181:3010;  # Puerto secundario para la segunda instancia
+        
+        least_conn;
+        keepalive 100;
+        
+        server 192.168.1.181:3000 max_fails=3 fail_timeout=30s;
+        server 192.168.1.181:3010 max_fails=3 fail_timeout=30s;
+    }
+
+    # Servidor para API Usuarios
+    server {
+        listen 8001;
+        server_name 192.168.1.181;
+        
+        # Protección DDoS
+        limit_req zone=api_limit burst=20 nodelay;
+        limit_conn conn_limit 10;
+        
+        # Headers de seguridad
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-Content-Type-Options nosniff;
+        
+        # Logging para detectar ataques
+        access_log /var/log/nginx/auth_access.log ddos;
+        error_log /var/log/nginx/auth_error.log;
+        
+        location / {
+            proxy_pass http://auth_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            
+            # Timeout para conexiones lentas
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 20s;
+            proxy_read_timeout 20s;
+        }
+        
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "OK";
+        }
+    }
+
+    # Servidor para API Salas
+    server {
+        listen 8002;
+        server_name 192.168.1.181;
+        
+        # Protección DDoS
+        limit_req zone=api_limit burst=20 nodelay;
+        limit_conn conn_limit 10;
+        
+        # Headers de seguridad
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-Content-Type-Options nosniff;
+        
+        # Logging para detectar ataques
+        access_log /var/log/nginx/rooms_access.log ddos;
+        error_log /var/log/nginx/rooms_error.log;
+        
+        location / {
+            proxy_pass http://rooms_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            
+            # Timeout para conexiones lentas
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 20s;
+            proxy_read_timeout 20s;
+        }
+        
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "OK";
+        }
+    }
+
+    # Servidor para API Mensajes
+    server {
+        listen 8003;
+        server_name 192.168.1.181;
+        
+        # Protección DDoS
+        limit_req zone=api_limit burst=20 nodelay;
+        limit_conn conn_limit 10;
+        
+        # Headers de seguridad
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-Content-Type-Options nosniff;
+        
+        # Logging para detectar ataques
+        access_log /var/log/nginx/chat_access.log ddos;
+        error_log /var/log/nginx/chat_error.log;
+        
+        location / {
+            proxy_pass http://chat_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            
+            # Timeout para conexiones lentas
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 20s;
+            proxy_read_timeout 20s;
+        }
+        
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "OK";
+        }
+    }
+
+    # Servidor principal para el Gateway
+    server {
+        listen 8000;
+        server_name 192.168.1.181;
+        
+        # Protección DDoS más agresiva en el Gateway ya que es el punto de entrada
+        limit_req zone=api_limit burst=50 nodelay;
+        limit_conn conn_limit 20;
+        
+        # Headers de seguridad
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-Content-Type-Options nosniff;
+        
+        # Logging para detectar ataques
+        access_log /var/log/nginx/gateway_access.log ddos;
+        error_log /var/log/nginx/gateway_error.log;
+        
+        location / {
+            proxy_pass http://gateway_servers;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            
+            # Timeout para conexiones lentas
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 20s;
+            proxy_read_timeout 20s;
+        }
+        
+        # Rutas alternativas si lo necesitas
+        location /api-usuarios/ {
+            proxy_pass http://auth_servers/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        
+        location /api-salas/ {
+            proxy_pass http://rooms_servers/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        
+        location /api-mensajes/ {
+            proxy_pass http://chat_servers/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "OK";
+        }
+    }
+}
